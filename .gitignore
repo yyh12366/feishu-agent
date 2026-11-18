@@ -1,0 +1,12 @@
+.env.feishu-codex.local
+__pycache__/
+.pytest_cache/
+tests/
+logs/
+.env
+.env.*
+!.env.example
+.venv/
+.DS_Store
+data/
+*.sqlite3*

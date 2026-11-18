@@ -1,0 +1,21 @@
+[Unit]
+Description=Feishu Codex webhook queue
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/apps/feishu-codex
+EnvironmentFile=/home/ubuntu/apps/feishu-codex/.env
+ExecStart=/home/ubuntu/apps/feishu-codex/.venv/bin/uvicorn feishu_webhook:create_app --factory --host 127.0.0.1 --port 8766 --no-access-log
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/home/ubuntu/apps/feishu-codex/data
+
+[Install]
+WantedBy=multi-user.target
