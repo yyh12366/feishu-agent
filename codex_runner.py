@@ -25,9 +25,9 @@ class CodexResult(NamedTuple):
     session_id: str
 
 
-def prepare_codex_home(codex_home: Path) -> None:
+def prepare_codex_home(codex_home: Path, *, link_config: bool = True) -> None:
     codex_home.mkdir(parents=True, exist_ok=True)
-    for name in ("auth.json", "config.toml"):
+    for name in (("auth.json", "config.toml") if link_config else ("auth.json",)):
         source = Path.home() / ".codex" / name
         target = codex_home / name
         if target.is_symlink() and not target.exists():
@@ -39,17 +39,18 @@ def prepare_codex_home(codex_home: Path) -> None:
 
 class CodexRunner:
     def __init__(self, codex_bin: str, codex_home: Path, model: str = "", *, allow_network: bool = False,
-                 permission_profile: str = ""):
+                 permission_profile: str = "", isolated: bool = False):
         self.codex_bin = codex_bin
         self.codex_home = codex_home
         self.model = model
         self.allow_network = allow_network
         self.permission_profile = permission_profile
+        self.isolated = isolated
         self.process_lock = threading.Lock()
         self.processes: set[subprocess.Popen] = set()
 
     def run(self, prompt: str, repo_dir: Path, session_id: str = "") -> CodexResult:
-        prepare_codex_home(self.codex_home)
+        prepare_codex_home(self.codex_home, link_config=not self.isolated)
         command = [self.codex_bin, "exec"]
         if session_id:
             command += ["resume", session_id]
@@ -62,11 +63,25 @@ class CodexRunner:
                 "-c", 'sandbox_mode="read-only"', "-c", 'approval_policy="never"',
             )
         command += ["--json", "--skip-git-repo-check", *permission_args]
+        process_env = os.environ.copy()
+        if self.isolated:
+            # PR content is input data. The reviewer needs neither local tools nor GitHub credentials.
+            command += ["--ignore-user-config", "--ignore-rules", "--ephemeral", "-c", 'web_search="disabled"']
+            for feature in ("shell_tool", "browser_use", "browser_use_external", "in_app_browser", "hooks",
+                            "plugins", "skill_search", "skill_mcp_dependency_install"):
+                command += ["--disable", feature]
+            allowed_env = {
+                "PATH", "HOME", "USER", "LANG", "LC_ALL", "LC_CTYPE", "TMPDIR", "OPENAI_API_KEY",
+                "SSL_CERT_FILE", "SSL_CERT_DIR", "HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY", "NO_PROXY",
+                "https_proxy", "http_proxy", "all_proxy", "no_proxy",
+            }
+            process_env = {name: value for name, value in process_env.items() if name in allowed_env}
+        process_env["CODEX_HOME"] = str(self.codex_home)
         if self.model:
             command += ["-m", self.model]
         command.append("-")
         process = subprocess.Popen(
-            command, cwd=repo_dir, env={**os.environ, "CODEX_HOME": str(self.codex_home)},
+            command, cwd=repo_dir, env=process_env,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             text=True, encoding="utf-8", start_new_session=True,
         )

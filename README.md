@@ -1,13 +1,14 @@
 # Feishu Codex Agent
 
-通过飞书群聊使用 Codex，仓库包含两个可以分别启动的 Agent。
+通过飞书群聊使用 Codex，仓库包含三个可以分别运行的 Agent。
 
 | 目录 | 用途 |
 | --- | --- |
 | [webhook_agent/](webhook_agent/) | 接收飞书 Webhook，通过 SQLite 和受限制的 SSH 将任务交给工作机。 |
 | [coding_group_agent/](coding_group_agent/) | 在工作机直接轮询专属编码群，使用独立的 Codex 权限配置。 |
+| [delivery_agent/](delivery_agent/README.md) | 统一处理 GitHub 提交、PR 审查、CI 和合并后的部署。 |
 
-两个 Agent 共用根目录的 Python 依赖、Codex 运行器和 SQLite 队列。根目录的原启动文件继续支持已有部署。
+各 Agent 复用根目录的 Codex 运行器和 SQLite 队列。根目录的原启动文件继续支持已有部署。
 
 ## Webhook Agent
 
