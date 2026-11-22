@@ -7,10 +7,13 @@
     <key>ProgramArguments</key>
     <array>
         <string>/absolute/path/to/venv/bin/python</string>
-        <string>/absolute/path/to/feishu-agent/feishu_coding_group.py</string>
+        <string>-m</string>
+        <string>coding_group_agent.feishu_coding_group</string>
         <string>--config</string>
         <string>/absolute/path/to/another-project/group.env</string>
     </array>
+    <key>WorkingDirectory</key>
+    <string>/absolute/path/to/feishu-agent</string>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>

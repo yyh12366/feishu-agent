@@ -1,6 +1,15 @@
 # Feishu Codex Agent
 
-一个通过飞书群聊触发 Codex 的轻量任务桥接服务。服务接收飞书 Webhook，将任务持久化到 SQLite，再通过受限制的 SSH 命令交给指定工作机上的 Codex 执行，并把结果发回原飞书群。
+通过飞书群聊使用 Codex，仓库包含两个可以分别启动的 Agent。
+
+| 目录 | 用途 |
+| --- | --- |
+| [webhook_agent/](webhook_agent/) | 接收飞书 Webhook，通过 SQLite 和受限制的 SSH 将任务交给工作机。 |
+| [coding_group_agent/](coding_group_agent/) | 在工作机直接轮询专属编码群，使用独立的 Codex 权限配置。 |
+
+两个 Agent 共用根目录的 Python 依赖、Codex 运行器和 SQLite 队列。根目录的原启动文件继续支持已有部署。
+
+## Webhook Agent
 
 ```text
 飞书群 @机器人
@@ -12,7 +21,7 @@ FastAPI Webhook -> SQLite 队列 -> SSH -> Codex
 飞书结果卡片 <---------------------- 最终回复
 ```
 
-## 功能
+### 功能
 
 - 验证飞书回调，只处理配置的应用、群和消息类型。
 - Webhook 仅在消息 `@` 到机器人时入队。示例配置默认关闭单独的消息轮询。
@@ -22,7 +31,7 @@ FastAPI Webhook -> SQLite 队列 -> SSH -> Codex
 - 工作机使用独立的 `CODEX_HOME` 运行 `codex exec`。
 - 支持把结果发送回来源群，并可通过消息 ID 去重。
 
-## 飞书应用配置
+### 飞书应用配置
 
 创建企业自建应用并开启机器人能力，至少配置：
 
@@ -32,7 +41,7 @@ FastAPI Webhook -> SQLite 队列 -> SSH -> Codex
 
 如果飞书开启了事件加密，同时配置 `FEISHU_ENCRYPT_KEY`。
 
-## 服务端启动
+### 服务端启动
 
 在 Linux 服务器上进入仓库目录，使用 Python 3.11 或更新版本：
 
@@ -42,12 +51,12 @@ python3 -m venv .venv
 python -m pip install -r requirements.txt
 install -m 600 .env.example .env
 # 填写飞书凭证、可信群 ID、SQLite 路径和 SSH 连接配置
-uvicorn feishu_webhook:create_app --factory --env-file .env --host 127.0.0.1 --port 8766
+uvicorn webhook_agent.feishu_webhook:create_app --factory --env-file .env --host 127.0.0.1 --port 8766
 ```
 
-长期运行时，按实际部署目录和服务账号调整 [systemd 模板](deploy/feishu-codex.service)。队列目录须已创建并允许服务账号写入，SSH 私钥和 `known_hosts` 须能被服务账号读取。将域名解析到 Nginx 所在服务器，准备 TLS 证书后，替换 [Nginx 模板](deploy/feishu-codex.conf) 中的域名和证书路径，检查配置并加载。飞书回调使用公网上的 HTTPS 地址，Nginx 将该路径转发到本机 `8766`。
+长期运行时，按实际部署目录和服务账号调整 [systemd 模板](webhook_agent/deploy/feishu-codex.service)。队列目录须已创建并允许服务账号写入，SSH 私钥和 `known_hosts` 须能被服务账号读取。将域名解析到 Nginx 所在服务器，准备 TLS 证书后，替换 [Nginx 模板](webhook_agent/deploy/feishu-codex.conf) 中的域名和证书路径，检查配置并加载。飞书回调使用公网上的 HTTPS 地址，Nginx 将该路径转发到本机 `8766`。
 
-## 工作机配置
+### 工作机配置
 
 工作机需要：
 
@@ -62,17 +71,17 @@ uvicorn feishu_webhook:create_app --factory --env-file .env --host 127.0.0.1 --p
 
 专属群 Agent 可以直接在工作机上运行。它通过飞书 API 轮询并回复原消息，每个实例绑定一个内部群、一个账号和一个 Git 工作区。群内仅保留指定账号和机器人，直接发文本即可。多个实例可以共用飞书应用凭据。
 
-1. 创建一个独立配置目录，例如 `~/.config/feishu-agent/another-project`。将 [配置模板](deploy/feishu-coding-group.env.example) 复制为该目录下的 `group.env`。
+1. 创建一个独立配置目录，例如 `~/.config/feishu-agent/another-project`。将 [配置模板](coding_group_agent/deploy/feishu-coding-group.env.example) 复制为该目录下的 `group.env`。
 2. 填写 `FEISHU_CODING_REPO`、`FEISHU_CODING_CHAT_ID`、`FEISHU_CODING_OWNER_ID`。群主和群 ID 使用该机器人的飞书应用返回的 ID。将 `FEISHU_APP_CONFIG` 指向已有的工作机配置。
 3. 在工作机登录 Codex CLI，安装本项目的 Python 依赖，然后启动实例。飞书应用需要读取群信息、读取群消息和回复消息的权限。若 Codex CLI 不在 `PATH`，在工作机配置中将 `FEISHU_CODEX_BIN` 设为可执行文件的绝对路径。
 
 ```bash
-python feishu_coding_group.py --config "$HOME/.config/feishu-agent/another-project/group.env"
+python -m coding_group_agent.feishu_coding_group --config "$HOME/.config/feishu-agent/another-project/group.env"
 ```
 
 配置所在目录会保存实例自己的会话、消息队列和沙箱配置。复制实例时使用新目录和新群。程序会维护实例内的 `codex-home/config.toml`。编码命令使用独立的 Codex 权限配置，工作区可写，命令网络访问关闭，项目里的 `.env` 文件禁止读取。
 
-需要在 Mac 上常驻时，将 [LaunchAgent 模板](deploy/feishu-coding-group.plist.example) 复制到 `~/Library/LaunchAgents/`。为实例设置唯一的 `Label` 和各绝对路径，文件名使用同一 `Label` 加 `.plist`。例如，运行 `launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/local.feishu-coding-group.another-project.plist"`。
+需要在 Mac 上常驻时，将 [LaunchAgent 模板](coding_group_agent/deploy/feishu-coding-group.plist.example) 复制到 `~/Library/LaunchAgents/`。为实例设置唯一的 `Label` 和各绝对路径，文件名使用同一 `Label` 加 `.plist`。例如，运行 `launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/local.feishu-coding-group.another-project.plist"`。
 
 ## 主要环境变量
 
