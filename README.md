@@ -58,6 +58,22 @@ uvicorn feishu_webhook:create_app --factory --env-file .env --host 127.0.0.1 --p
 
 飞书 Hook 使用 `.env.feishu-codex.local`。该文件和 `.env` 均已被 `.gitignore` 排除。
 
+## 启动专属编码群 Agent
+
+专属群 Agent 可以直接在工作机上运行。它通过飞书 API 轮询并回复原消息，每个实例绑定一个内部群、一个账号和一个 Git 工作区。群内仅保留指定账号和机器人，直接发文本即可。多个实例可以共用飞书应用凭据。
+
+1. 创建一个独立配置目录，例如 `~/.config/feishu-agent/another-project`。将 [配置模板](deploy/feishu-coding-group.env.example) 复制为该目录下的 `group.env`。
+2. 填写 `FEISHU_CODING_REPO`、`FEISHU_CODING_CHAT_ID`、`FEISHU_CODING_OWNER_ID`。群主和群 ID 使用该机器人的飞书应用返回的 ID。将 `FEISHU_APP_CONFIG` 指向已有的工作机配置。
+3. 在工作机登录 Codex CLI，安装本项目的 Python 依赖，然后启动实例。飞书应用需要读取群信息、读取群消息和回复消息的权限。若 Codex CLI 不在 `PATH`，在工作机配置中将 `FEISHU_CODEX_BIN` 设为可执行文件的绝对路径。
+
+```bash
+python feishu_coding_group.py --config "$HOME/.config/feishu-agent/another-project/group.env"
+```
+
+配置所在目录会保存实例自己的会话、消息队列和沙箱配置。复制实例时使用新目录和新群。程序会维护实例内的 `codex-home/config.toml`。编码命令使用独立的 Codex 权限配置，工作区可写，命令网络访问关闭，项目里的 `.env` 文件禁止读取。
+
+需要在 Mac 上常驻时，将 [LaunchAgent 模板](deploy/feishu-coding-group.plist.example) 复制到 `~/Library/LaunchAgents/`。为实例设置唯一的 `Label` 和各绝对路径，文件名使用同一 `Label` 加 `.plist`。例如，运行 `launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/local.feishu-coding-group.another-project.plist"`。
+
 ## 主要环境变量
 
 | 变量 | 说明 |

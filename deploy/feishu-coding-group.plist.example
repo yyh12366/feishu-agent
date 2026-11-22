@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>local.feishu-coding-group.another-project</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/absolute/path/to/venv/bin/python</string>
+        <string>/absolute/path/to/feishu-agent/feishu_coding_group.py</string>
+        <string>--config</string>
+        <string>/absolute/path/to/another-project/group.env</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ThrottleInterval</key>
+    <integer>15</integer>
+    <key>StandardErrorPath</key>
+    <string>/absolute/path/to/another-project/worker.log</string>
+</dict>
+</plist>

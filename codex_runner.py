@@ -38,11 +38,13 @@ def prepare_codex_home(codex_home: Path) -> None:
 
 
 class CodexRunner:
-    def __init__(self, codex_bin: str, codex_home: Path, model: str = "", *, allow_network: bool = False):
+    def __init__(self, codex_bin: str, codex_home: Path, model: str = "", *, allow_network: bool = False,
+                 permission_profile: str = ""):
         self.codex_bin = codex_bin
         self.codex_home = codex_home
         self.model = model
         self.allow_network = allow_network
+        self.permission_profile = permission_profile
         self.process_lock = threading.Lock()
         self.processes: set[subprocess.Popen] = set()
 
@@ -52,9 +54,13 @@ class CodexRunner:
         if session_id:
             command += ["resume", session_id]
         # 飞书日志查询允许联网，其他调用方保留原只读沙箱。
-        permission_args = READ_ONLY_NETWORK_ARGS if self.allow_network else (
-            "-c", 'sandbox_mode="read-only"', "-c", 'approval_policy="never"',
-        )
+        if self.permission_profile:
+            permission_args = ("-c", f"default_permissions={json.dumps(self.permission_profile)}",
+                               "-c", 'approval_policy="never"')
+        else:
+            permission_args = READ_ONLY_NETWORK_ARGS if self.allow_network else (
+                "-c", 'sandbox_mode="read-only"', "-c", 'approval_policy="never"',
+            )
         command += ["--json", "--skip-git-repo-check", *permission_args]
         if self.model:
             command += ["-m", self.model]
@@ -77,6 +83,10 @@ class CodexRunner:
             raise TimeoutError(
                 f"Codex 在 {HookLimitEnum.RESULT_TIMEOUT_SECONDS} 秒内没有完成，已终止本次运行；请缩小问题范围后重试"
             )
+        except KeyboardInterrupt:
+            self._kill(process)
+            process.communicate()
+            raise
         finally:
             with self.process_lock:
                 self.processes.discard(process)

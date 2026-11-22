@@ -48,6 +48,9 @@ class FeishuTaskQueue:
                     updated_at INTEGER NOT NULL DEFAULT 0
                 )
             """)
+            columns = {column[1] for column in self.db.execute("PRAGMA table_info(feishu_codex_task)")}
+            if "result_text" not in columns:
+                self.db.execute("ALTER TABLE feishu_codex_task ADD COLUMN result_text TEXT")
             self.db.execute("CREATE INDEX IF NOT EXISTS idx_task_status_id ON feishu_codex_task(status, id)")
             self.db.execute("CREATE INDEX IF NOT EXISTS idx_task_status_time ON feishu_codex_task(status, updated_at)")
             # 本地中断不重跑；服务器可重新交付，由本地消息去重避免重复修改。
@@ -96,11 +99,11 @@ class FeishuTaskQueue:
         logger.debug(f"get_next_task success task_id:{task[0] if task else None} mark_running:{mark_running}")
         return task
 
-    def finish_task(self, task_id: int, status: TaskStatusEnum) -> None:
+    def finish_task(self, task_id: int, status: TaskStatusEnum, result_text: str | None = None) -> None:
         with self.db_lock, self.db:
             self.db.execute(
-                "UPDATE feishu_codex_task SET status = ?, updated_at = ? WHERE id = ?",
-                (status.value, int(time.time()), task_id),
+                "UPDATE feishu_codex_task SET status = ?, updated_at = ?, result_text = ? WHERE id = ?",
+                (status.value, int(time.time()), result_text, task_id),
             )
             self.db.execute("""
                 DELETE FROM feishu_codex_task WHERE id IN (
